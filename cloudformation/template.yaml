@@ -1,0 +1,165 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: An example CloudFormation stack to demonstrate how to issue Ably tokens using AWS Cognito, AWS API Gateway and AWS Lambda.
+Parameters:
+  LambdaS3Bucket:
+    Type: String
+    Description: S3 bucket containing the Lambda function zip file
+    Default: ably-serverless-auth-example
+  LambdaS3Path:
+    Type: String
+    Description: Path to the Lambda function zip file in the S3 bucket
+    Default: lambda.zip
+  AblyKey:
+    Type: String
+    Description: Ably API Key to use in the token Lambda function to sign Ably JWT tokens
+    NoEcho: true
+Resources:
+  LambdaRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - lambda.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+  LambdaFunctionWeb:
+    Type: AWS::Lambda::Function
+    Properties:
+      Handler: lambda/web/index.handler
+      Runtime: nodejs14.x
+      Role: !GetAtt 'LambdaRole.Arn'
+      Environment:
+        Variables:
+          COGNITO_REGION: !Ref AWS::Region
+          COGNITO_USER_POOL_ID: !Ref CognitoUserPool
+          COGNITO_CLIENT_ID: !Ref CognitoUserPoolClient
+          COGNITO_DOMAIN: !Ref CognitoUserPoolDomain
+          COGNITO_REDIRECT_URL: !GetAtt 'Api.ApiEndpoint'
+      Code:
+        S3Bucket: !Ref LambdaS3Bucket
+        S3Key: !Ref LambdaS3Path
+  LambdaFunctionToken:
+    Type: AWS::Lambda::Function
+    Properties:
+      Handler: lambda/token/index.handler
+      Runtime: nodejs14.x
+      Role: !GetAtt 'LambdaRole.Arn'
+      Environment:
+        Variables:
+          ABLY_KEY: !Ref AblyKey
+      Code:
+        S3Bucket: !Ref LambdaS3Bucket
+        S3Key: !Ref LambdaS3Path
+  Api:
+    Type: AWS::ApiGatewayV2::Api
+    Properties:
+      Name: !Ref AWS::StackName
+      ProtocolType: HTTP
+  ApiStage:
+    Type: AWS::ApiGatewayV2::Stage
+    Properties:
+      StageName: $default
+      ApiId: !Ref Api
+      AutoDeploy: true
+  ApiPermissionWeb:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !Ref LambdaFunctionWeb
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${Api}/*
+  ApiPermissionToken:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !Ref LambdaFunctionToken
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${Api}/*
+  ApiIntegrationWeb:
+    Type: AWS::ApiGatewayV2::Integration
+    Properties:
+      ApiId: !Ref Api
+      IntegrationType: AWS_PROXY
+      IntegrationMethod: POST
+      IntegrationUri: !Sub arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${LambdaFunctionWeb.Arn}/invocations
+      PayloadFormatVersion: 2.0
+  ApiIntegrationToken:
+    Type: AWS::ApiGatewayV2::Integration
+    Properties:
+      ApiId: !Ref Api
+      IntegrationType: AWS_PROXY
+      IntegrationMethod: POST
+      IntegrationUri: !Sub arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${LambdaFunctionToken.Arn}/invocations
+      PayloadFormatVersion: 2.0
+  ApiCognitoAuthorizer:
+    Type: AWS::ApiGatewayV2::Authorizer
+    Properties:
+      Name: !Ref AWS::StackName
+      ApiId: !Ref Api
+      AuthorizerType: JWT
+      IdentitySource:
+        - '$request.header.Authorization'
+      JwtConfiguration:
+        Audience:
+          - !Ref CognitoUserPoolClient
+        Issuer: !Sub https://cognito-idp.${AWS::Region}.amazonaws.com/${CognitoUserPool}
+  ApiRouteWeb:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId: !Ref Api
+      RouteKey: $default
+      Target: !Sub integrations/${ApiIntegrationWeb}
+  ApiRouteToken:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId: !Ref Api
+      RouteKey: 'POST /token'
+      Target: !Sub integrations/${ApiIntegrationToken}
+      AuthorizationType: JWT
+      AuthorizerId: !Ref ApiCognitoAuthorizer
+  CognitoUserPool:
+    Type: AWS::Cognito::UserPool
+    Properties:
+      UserPoolName: !Ref AWS::StackName
+      AdminCreateUserConfig:
+        AllowAdminCreateUserOnly: true
+  CognitoUserPoolDomain:
+    Type: AWS::Cognito::UserPoolDomain
+    Properties:
+      UserPoolId: !Ref CognitoUserPool
+      Domain: !Ref AWS::StackName
+  CognitoUserPoolClient:
+    Type: AWS::Cognito::UserPoolClient
+    Properties:
+      UserPoolId: !Ref CognitoUserPool
+      ClientName: !Ref AWS::StackName
+      SupportedIdentityProviders:
+        - COGNITO
+      ExplicitAuthFlows:
+        - ALLOW_USER_PASSWORD_AUTH
+        - ALLOW_REFRESH_TOKEN_AUTH
+      CallbackURLs:
+        - !GetAtt 'Api.ApiEndpoint'
+      LogoutURLs:
+        - !GetAtt 'Api.ApiEndpoint'
+      AllowedOAuthFlowsUserPoolClient: true
+      AllowedOAuthFlows:
+        - code
+      AllowedOAuthScopes:
+        - openid
+        - profile
+        - email
+      GenerateSecret: false
+Outputs:
+  CognitoUserPoolID:
+    Description: The ID of the AWS Cognito user pool
+    Value: !Ref CognitoUserPool
+  ApiEndpoint:
+    Description: The API Gateway endpoint
+    Value: !GetAtt 'Api.ApiEndpoint'
