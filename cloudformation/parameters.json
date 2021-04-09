@@ -1,0 +1,14 @@
+[
+  {
+    "ParameterKey":   "LambdaS3Bucket",
+    "ParameterValue": "ably-serverless-auth-example"
+  },
+  {
+    "ParameterKey":   "LambdaS3Path",
+    "ParameterValue": "lambda.zip"
+  },
+  {
+    "ParameterKey":   "AblyKey",
+    "ParameterValue": "xxxxxx.yyyyyy:zzzzzzzzzzzzzzzz"
+  }
+]

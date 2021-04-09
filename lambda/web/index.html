@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Ably Serverless Auth Example</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <style>
+      body {
+        font-family: 'Helvetica', 'Arial', sans-serif;
+      }
+      h1 {
+        text-align: center;
+      }
+      button {
+        font-size: 1.5em;
+      }
+      pre {
+        background-color: #f5f5f5;
+        border: 1px solid #ccc;
+        border-radius: 4px;
+        color: #333333;
+        line-height: 1.5;
+        margin: 0 0 10px;
+        padding: 10px;
+        overflow-wrap: break-word;
+        white-space: pre-wrap;
+        word-break: break-all;
+        word-wrap: break-word;
+      }
+      .container {
+        display: grid;
+        grid-template-columns: 50% 50%;
+      }
+      .column {
+        border: 1px solid #ccc;
+        border-radius: 4px;
+        margin: 10px;
+        padding: 10px;
+      }
+    </style>
+  </head>
+
+  <body>
+    <h1>Ably Serverless Auth Example</h1>
+
+    <div id="app" class="container">
+      <div class="column">
+        <h2>AWS Cognito</h2>
+
+        <button id="sign_in">Sign In</button>
+
+        <button id="sign_out" disabled>Sign Out</button>
+
+        <h3>AWS Cognito User</h4>
+        <pre id="user">-</pre>
+
+        <h3>AWS Cognito ID Token</h4>
+        <pre id="id_token">-</pre>
+      </div>
+
+      <div class="column">
+        <h2>Ably</h2>
+
+        <button id="connect" disabled>Connect</button>
+        <button id="disconnect" disabled>Disconnect</button>
+
+        <h3>Ably JWT Token</h4>
+        <pre id="ably_token">-</pre>
+
+        <h3>Ably Connection</h4>
+        <pre id="ably_connection">-</pre>
+      </div>
+    </div>
+
+    <script src="https://cdn.ably.io/lib/ably.min-1.2.7.js"></script>
+    <script src="https://unpkg.com/oidc-client@1.11.5/dist/oidc-client.min.js"></script>
+    <script src="/app.js"></script>
+  </body>
+</html>
